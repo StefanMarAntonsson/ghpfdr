@@ -224,74 +224,92 @@
 
   <section class="panel">
     <div class="controls">
-      <div class="control-group">
-        <label>
-          Rows
-          <input
-            type="number"
-            min="1"
-            max="200"
-            value={rows}
-            on:input={(event) => (rows = clampInt(event.currentTarget.value, 1, 200))}
-          />
-        </label>
-        <label>
-          Columns
-          <input
-            type="number"
-            min="1"
-            max="200"
-            value={cols}
-            on:input={(event) => (cols = clampInt(event.currentTarget.value, 1, 200))}
-          />
-        </label>
-        <label>
-          Cell size
-          <input
-            type="number"
-            min="4"
-            max="64"
-            value={cellSize}
-            on:input={(event) => (cellSize = clampInt(event.currentTarget.value, 4, 64))}
-          />
-        </label>
-        <label>
-          Cell gap
-          <input
-            type="number"
-            min="0"
-            max="64"
-            value={cellGap}
-            on:input={(event) => (cellGap = clampInt(event.currentTarget.value, 0, 64))}
-          />
-        </label>
+      <div class="controls-column">
+        <div class="input-row">
+          <label>
+            Rows
+            <input
+              type="number"
+              min="1"
+              max="200"
+              value={rows}
+              on:input={(event) => (rows = clampInt(event.currentTarget.value, 1, 200))}
+            />
+          </label>
+          <label>
+            Columns
+            <input
+              type="number"
+              min="1"
+              max="200"
+              value={cols}
+              on:input={(event) => (cols = clampInt(event.currentTarget.value, 1, 200))}
+            />
+          </label>
+        </div>
+        <div class="input-row">
+          <label>
+            Cell size
+            <input
+              type="number"
+              min="4"
+              max="64"
+              value={cellSize}
+              on:input={(event) => (cellSize = clampInt(event.currentTarget.value, 4, 64))}
+            />
+          </label>
+          <label>
+            Cell gap
+            <input
+              type="number"
+              min="0"
+              max="64"
+              value={cellGap}
+              on:input={(event) => (cellGap = clampInt(event.currentTarget.value, 0, 64))}
+            />
+          </label>
+        </div>
       </div>
-      <div class="control-group">
-        <label>
-          Corner radius
-          <input
-            type="number"
-            min="0"
-          max="256"
-            value={cornerRadius}
-            on:input={(event) => (cornerRadius = clampInt(event.currentTarget.value, 0, 16))}
-          />
-        </label>
-        <label class="color">
-          Fill color
-          <input type="color" value={fillColor} on:input={(event) => (fillColor = event.currentTarget.value)} />
-          <input type="text" value={fillColor} on:input={(event) => (fillColor = event.currentTarget.value)} />
-        </label>
-        <label>
-          Random cells
-          <input
-            type="number"
-            min="0"
-            max={rows * cols}
-            value={randomCount}
-            on:input={(event) => (randomCount = clampInt(event.currentTarget.value, 0, rows * cols))}
-          />
-        </label>
+      <div class="controls-column">
+        <div class="input-row">
+          <label>
+            Corner radius
+            <input
+              type="number"
+              min="0"
+              max="256"
+              value={cornerRadius}
+              on:input={(event) => (cornerRadius = clampInt(event.currentTarget.value, 0, 256))}
+            />
+          </label>
+          <label>
+            Random cells
+            <input
+              type="number"
+              min="0"
+              max={rows * cols}
+              value={randomCount}
+              on:input={(event) => (randomCount = clampInt(event.currentTarget.value, 0, rows * cols))}
+            />
+          </label>
+        </div>
+        <div class="input-row">
+          <label class="color">
+            Fill color
+            <div class="color-row">
+              <input
+                type="color"
+                value={fillColor}
+                on:input={(event) => (fillColor = event.currentTarget.value)}
+              />
+              <input
+                type="text"
+                value={fillColor}
+                on:input={(event) => (fillColor = event.currentTarget.value)}
+              />
+            </div>
+          </label>
+        </div>
       </div>
       <div class="actions">
         <button type="button" on:click={clearGrid}>Clear grid</button>
@@ -385,15 +403,23 @@
   }
 
   .controls {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 1.5rem;
-    align-items: start;
+    align-items: flex-start;
   }
 
-  .control-group {
-    display: grid;
+  .controls-column {
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
   }
 
   label {
@@ -423,6 +449,21 @@
   .color {
     display: grid;
     gap: 0.5rem;
+  }
+
+  .color-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .color-row input[type="color"] {
+    flex: 0 0 3rem;
+  }
+
+  .color-row input[type="text"] {
+    flex: 0 1 8rem;
+    width: 8rem;
   }
 
   .actions {
