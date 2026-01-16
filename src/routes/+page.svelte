@@ -29,7 +29,7 @@
   const normalizeInputs = () => {
     rows = clampInt(rows, 1, 200);
     cols = clampInt(cols, 1, 200);
-    cellSize = clampInt(cellSize, 4, 64);
+    cellSize = clampInt(cellSize, 1, 64);
     cellGap = clampInt(cellGap, 0, 64);
     cornerRadius = clampInt(cornerRadius, 0, 256);
   };
@@ -252,10 +252,10 @@
             Cell size
             <input
               type="number"
-              min="4"
+              min="1"
               max="64"
               value={cellSize}
-              on:input={(event) => (cellSize = clampInt(event.currentTarget.value, 4, 64))}
+              on:input={(event) => (cellSize = clampInt(event.currentTarget.value, 1, 64))}
             />
           </label>
           <label>
