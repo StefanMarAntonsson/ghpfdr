@@ -555,12 +555,6 @@
     z-index: 2;
   }
 
-  /* .value {
-    margin-left: 0.35rem;
-    font-weight: 600;
-    color: #1f2933;
-  } */
-
   .grid-resize-wrapper {
     position: relative;
     width: fit-content;
@@ -643,6 +637,29 @@
     background: #4c6ef5;
   }
 
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #1f2933;
+    padding: 0.35rem 0;
+    list-style: none;
+  }
+
+  details summary::before {
+    content: "▸";
+    display: inline-block;
+    margin-right: 0.5rem;
+    transition: transform 0.2s ease;
+  }
+
+  details[open] summary::before {
+    transform: rotate(90deg);
+  }
+
+  details summary::-webkit-details-marker {
+    display: none;
+  }
+
   .sr-only {
     position: absolute;
     width: 1px;
@@ -663,14 +680,6 @@
     color: #2b323b;
   }
 
-  /* input[type="number"],
-  input[type="text"] {
-    border: 1px solid #d0d7de;
-    border-radius: 0.6rem;
-    padding: 0.5rem 0.7rem;
-    font-size: 0.9rem;
-  } */
-
   input[type="color"] {
     width: 100%;
     border: 1px solid #d0d7de;
@@ -678,43 +687,7 @@
     padding: 0.3rem;
     height: 2.6rem;
   }
-
-  .actions {
-    display: flex;
-    gap: 0.75rem;
-    align-items: flex-start;
-    width: max-content;
-  }
-
-  .actions-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .actions button {
-    border: none;
-    border-radius: 999px;
-    padding: 0.55rem 1rem;
-    background: #2b323b;
-    color: white;
-    font-size: 0.9rem;
-    cursor: pointer;
-    width: 100%;
-  }
-
-  .actions-group:first-child button:nth-of-type(1) {
-    background: #e03131;
-  }
-
-  .actions-group:first-child button:nth-of-type(2) {
-    background: #4c6ef5;
-  }
-
-  .actions-group:last-child button:nth-of-type(1) {
-    background: #12b886;
-  }
-
+  
   .status {
     font-size: 0.85rem;
     color: #16a34a;
@@ -754,12 +727,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-  }
-
-  .export-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
   }
 
   textarea {
