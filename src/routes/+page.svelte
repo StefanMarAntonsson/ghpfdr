@@ -24,6 +24,9 @@
   let gridResizeStartY = 0;
   let gridResizeStartRows = 0;
   let gridResizeStartCols = 0;
+  let isGapDragging = false;
+  let gapStartX = 0;
+  let gapStartValue = 0;
 
   const keyFor = (row, col) => `${row}:${col}`;
 
@@ -39,7 +42,7 @@
     rows = clampInt(rows, 1, 200);
     cols = clampInt(cols, 1, 200);
     cellSize = clampInt(cellSize, 1, 96);
-    cellGap = clampInt(cellGap, 0, 64);
+    cellGap = clampInt(cellGap, 0, 256);
     radiusFactor = clampInt(radiusFactor, 0, 100);
   };
 
@@ -161,15 +164,39 @@
     isGridResizing = false;
   };
 
+  const startGapDrag = (event) => {
+    event.preventDefault();
+    isGapDragging = true;
+    gapStartX = event.clientX;
+    gapStartValue = cellGap;
+    if (event.currentTarget instanceof HTMLElement && event.currentTarget.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  };
+
+  const handleGapDragMove = (event) => {
+    if (!isGapDragging) {
+      return;
+    }
+    const delta = event.clientX - gapStartX;
+    cellGap = clampInt(gapStartValue + Math.round(delta), 0, 256);
+  };
+
+  const stopGapDrag = () => {
+    isGapDragging = false;
+  };
+
   const stopPointerActions = () => {
     stopPainting();
     stopResize();
     stopGridResize();
+    stopGapDrag();
   };
 
   const handlePointerMove = (event) => {
     handleResizeMove(event);
     handleGridResizeMove(event);
+    handleGapDragMove(event);
   };
 
   const clearGrid = () => {
@@ -206,7 +233,7 @@
   $: gridHeight = rows * cellSize + (rows - 1) * cellGap;
   $: totalCells = rows * cols;
   $: activeCount = activeCells.size;
-  $: previewCellSize = Math.max(16, Math.min(cellSize, 96));
+  $: previewCellSize = Math.max(1, Math.min(cellSize, 96));
   $: previewRadius = Math.min(cornerRadius, previewCellSize / 2);
   $: svgOutput = generateSvg(
     activeCells,
@@ -244,17 +271,28 @@
       <h1>Grid SVG Drawer</h1>
       <p>Click or drag to paint cells, then export the SVG.</p>
     </div>
+  </header>
+
+  <div class="actions-toolbar">
+    <button type="button" on:click={clearGrid}>Clear grid</button>
     <div class="summary">
       <span>{rows} x {cols}</span>
       <span>{activeCount} out of {totalCells} cells filled</span>
       <span>{gridWidth} x {gridHeight}px</span>
+      <span>Cell {cellSize}px</span>
+      <span>Gap {cellGap}px</span>
+      <span>Radius {cornerRadius}px</span>
     </div>
-  </header>
+    {#if copyStatus}
+      <span class="status">{copyStatus}</span>
+    {/if}
+  </div>
 
   <section class="panel">
     <div class="controls">
       <div class="visualizer">
         <label class="radius-slider">
+          <span class="radius-end square" aria-hidden="true"></span>
           <span class="sr-only">Corner radius</span>
           <input
             type="range"
@@ -263,8 +301,9 @@
             value={radiusFactor}
             on:input={(event) => (radiusFactor = clampInt(event.currentTarget.value, 0, 100))}
           />
+          <span class="radius-end circle" aria-hidden="true"></span>
         </label>
-        <div class="visualizer-preview">
+        <div class="visualizer-preview" style={`gap: ${cellGap}px;`}>
           <div
             class="visualizer-cell is-swatch"
             aria-label="Fill color"
@@ -279,37 +318,15 @@
             />
             <span class="resize-handle" on:pointerdown|stopPropagation={startResize}></span>
           </div>
+          <div
+            class="visualizer-cell gap-handle"
+            aria-label="Grid gap"
+            style={`width: ${previewCellSize}px; height: ${previewCellSize}px; border-radius: ${previewRadius}px;`}
+            on:pointerdown|stopPropagation={startGapDrag}
+          ></div>
         </div>
       </div>
-      <div class="actions-panel">
-        <div class="input-row">
-        </div>
-        <div class="actions">
-          <div class="actions-group">
-            <button type="button" on:click={clearGrid}>Clear grid</button>
-          </div>
-          <div class="actions-group">
-            <button type="button" on:click={copySvg}>Copy SVG</button>
-            <button type="button" on:click={downloadSvg}>Download SVG</button>
-            {#if copyStatus}
-              <span class="status">{copyStatus}</span>
-            {/if}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid-controls">
-      <label class="grid-gap-slider">
-        Grid gap
-        <input
-          type="range"
-          min="0"
-          max="64"
-          value={cellGap}
-          on:input={(event) => (cellGap = clampInt(event.currentTarget.value, 0, 64))}
-        />
-      </label>
+      <div class="actions-panel"></div>
     </div>
 
     <div class="grid-panel">
@@ -347,10 +364,17 @@
   </section>
 
   <section class="panel export">
-    <div class="export-header">
-      <h2>SVG output</h2>
+    <div class="export-actions">
+      <button type="button" on:click={copySvg}>Copy SVG</button>
+      <button type="button" on:click={downloadSvg}>Download SVG</button>
+      {#if copyStatus}
+        <span class="status">{copyStatus}</span>
+      {/if}
     </div>
-    <textarea readonly rows="12" bind:value={svgOutput}></textarea>
+    <details>
+      <summary>SVG output</summary>
+      <textarea readonly rows="12" bind:value={svgOutput}></textarea>
+    </details>
   </section>
 </main>
 
@@ -418,7 +442,7 @@
 
   .visualizer-preview {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.75rem;
     align-items: center;
     padding: 1rem;
@@ -441,6 +465,12 @@
     cursor: pointer;
   }
 
+  .gap-handle {
+    background: white;
+    border-color: #d9e2ec;
+    cursor: ew-resize;
+  }
+
   .visualizer-preview .color-picker-input {
     position: absolute;
     inset: 0;
@@ -453,13 +483,15 @@
     width: max(var(--preview-cell-size), 50px);
     height: var(--preview-cell-size);
     display: flex;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
     line-height: 0;
+    gap: 2px;
   }
 
   .radius-slider input[type="range"] {
-    width: max(var(--preview-cell-size), 50px);
+    width: calc(max(var(--preview-cell-size), 50px) - 20px);
     height: 1px;
     margin: 0;
     background: transparent;
@@ -498,60 +530,17 @@
     border: none;
   }
 
-  .grid-controls {
-    display: flex;
-    justify-content: flex-start;
-    margin: 1rem 0 0.5rem;
+  .radius-end {
+    width: 8px;
+    height: 8px;
+    background: #000000;
+    flex: 0 0 auto;
   }
 
-  .grid-gap-slider {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    font-size: 0.9rem;
-    color: #2b323b;
-    width: 128px;
-  }
-
-  .grid-gap-slider input[type="range"] {
-    width: 128px;
-    height: 1px;
-    margin: 0;
-    background: transparent;
-    -webkit-appearance: none;
-    appearance: none;
-    cursor: ew-resize;
-  }
-
-  .grid-gap-slider input[type="range"]::-webkit-slider-runnable-track {
-    height: 1px;
-    background: #4c6ef5;
+  .radius-end.circle {
     border-radius: 999px;
   }
 
-  .grid-gap-slider input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    background: #4c6ef5;
-    margin-top: -4.5px;
-  }
-
-  .grid-gap-slider input[type="range"]::-moz-range-track {
-    height: 1px;
-    background: #4c6ef5;
-    border-radius: 999px;
-  }
-
-  .grid-gap-slider input[type="range"]::-moz-range-thumb {
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    background: #4c6ef5;
-    border: none;
-  }
   .resize-handle {
     position: absolute;
     right: -16px;
@@ -596,9 +585,62 @@
 
 
   .actions-panel {
+    display: none;
+  }
+
+  .actions-toolbar {
     display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
+    align-items: center;
+    margin: 1rem 0 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .actions-toolbar button {
+    border: none;
+    border-radius: 999px;
+    padding: 0.55rem 1rem;
+    background: #2b323b;
+    color: white;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  .actions-toolbar button:first-child {
+    background: #e03131;
+  }
+
+  .actions-toolbar button:nth-child(2) {
+    background: #12b886;
+  }
+
+  .actions-toolbar button:nth-child(3) {
+    background: #4c6ef5;
+  }
+
+  .export-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+
+  .export-actions button {
+    border: none;
+    border-radius: 999px;
+    padding: 0.55rem 1rem;
+    background: #2b323b;
+    color: white;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  .export-actions button:first-child {
+    background: #12b886;
+  }
+
+  .export-actions button:nth-child(2) {
+    background: #4c6ef5;
   }
 
   .sr-only {
