@@ -1,6 +1,6 @@
 <script>
   let rows = 12;
-  let cols = 36;
+  let cols = 12;
   let cellSize = 16;
   let cellGap = 8;
   let cornerRadius = 4;
@@ -10,11 +10,20 @@
   let isPainting = false;
   let paintValue = true;
   let copyStatus = "";
-  let randomCount = 0;
   let gridWidth = 0;
   let gridHeight = 0;
   let activeCount = 0;
   let svgOutput = "";
+  let isResizing = false;
+  let resizeStartX = 0;
+  let resizeStartY = 0;
+  let resizeStartSize = 0;
+  let radiusFactor = 50;
+  let isGridResizing = false;
+  let gridResizeStartX = 0;
+  let gridResizeStartY = 0;
+  let gridResizeStartRows = 0;
+  let gridResizeStartCols = 0;
 
   const keyFor = (row, col) => `${row}:${col}`;
 
@@ -29,9 +38,9 @@
   const normalizeInputs = () => {
     rows = clampInt(rows, 1, 200);
     cols = clampInt(cols, 1, 200);
-    cellSize = clampInt(cellSize, 1, 64);
+    cellSize = clampInt(cellSize, 1, 96);
     cellGap = clampInt(cellGap, 0, 64);
-    cornerRadius = clampInt(cornerRadius, 0, 256);
+    radiusFactor = clampInt(radiusFactor, 0, 100);
   };
 
   const pruneActiveCells = (cells, maxRows, maxCols) => {
@@ -100,61 +109,73 @@
     isPainting = false;
   };
 
+  const startResize = (event) => {
+    event.preventDefault();
+    isResizing = true;
+    resizeStartX = event.clientX;
+    resizeStartY = event.clientY;
+    resizeStartSize = cellSize;
+    if (event.currentTarget instanceof HTMLElement && event.currentTarget.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  };
+
+  const handleResizeMove = (event) => {
+    if (!isResizing) {
+      return;
+    }
+    const delta = Math.max(event.clientX - resizeStartX, event.clientY - resizeStartY);
+    cellSize = clampInt(Math.round(resizeStartSize + delta), 1, 96);
+  };
+
+  const stopResize = () => {
+    isResizing = false;
+  };
+
+  const startGridResize = (event) => {
+    event.preventDefault();
+    isGridResizing = true;
+    gridResizeStartX = event.clientX;
+    gridResizeStartY = event.clientY;
+    gridResizeStartRows = rows;
+    gridResizeStartCols = cols;
+    if (event.currentTarget instanceof HTMLElement && event.currentTarget.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  };
+
+  const handleGridResizeMove = (event) => {
+    if (!isGridResizing) {
+      return;
+    }
+    const step = Math.max(1, cellSize + cellGap);
+    const deltaX = event.clientX - gridResizeStartX;
+    const deltaY = event.clientY - gridResizeStartY;
+    const nextCols = clampInt(gridResizeStartCols + Math.round(deltaX / step), 1, 200);
+    const nextRows = clampInt(gridResizeStartRows + Math.round(deltaY / step), 1, 200);
+    cols = nextCols;
+    rows = nextRows;
+  };
+
+  const stopGridResize = () => {
+    isGridResizing = false;
+  };
+
+  const stopPointerActions = () => {
+    stopPainting();
+    stopResize();
+    stopGridResize();
+  };
+
+  const handlePointerMove = (event) => {
+    handleResizeMove(event);
+    handleGridResizeMove(event);
+  };
+
   const clearGrid = () => {
     activeCells = new Map();
   };
 
-  const randomFill = () => {
-    const total = rows * cols;
-    if (total <= 0) {
-      return;
-    }
-    const requested = clampInt(randomCount, 0, total);
-    const targetCount =
-      requested === 0
-        ? Math.floor(Math.random() * Math.max(1, Math.ceil(total * 0.2))) + 1
-        : requested;
-    const createRandomSet = () => {
-      const allKeys = [];
-      for (let row = 0; row < rows; row += 1) {
-        for (let col = 0; col < cols; col += 1) {
-          allKeys.push(keyFor(row, col));
-        }
-      }
-      for (let i = allKeys.length - 1; i > 0; i -= 1) {
-        const swapIndex = Math.floor(Math.random() * (i + 1));
-        [allKeys[i], allKeys[swapIndex]] = [allKeys[swapIndex], allKeys[i]];
-      }
-      const next = new Map();
-      for (const entry of allKeys.slice(0, targetCount)) {
-        next.set(entry, fillColor);
-      }
-      return next;
-    };
-
-    let next = createRandomSet();
-    if (activeCells.size === targetCount && total > 1) {
-      let attempts = 0;
-      while (attempts < 5) {
-        const previous = activeCells;
-        next = createRandomSet();
-        let isSame = previous.size === next.size;
-        if (isSame) {
-          for (const entry of previous.keys()) {
-            if (!next.has(entry)) {
-              isSame = false;
-              break;
-            }
-          }
-        }
-        if (!isSame) {
-          break;
-        }
-        attempts += 1;
-      }
-    }
-    activeCells = next;
-  };
 
   const copySvg = async () => {
     try {
@@ -179,11 +200,14 @@
   };
 
   $: normalizeInputs();
+  $: cornerRadius = Math.round((cellSize / 2) * (radiusFactor / 100));
   $: activeCells = pruneActiveCells(activeCells, rows, cols);
   $: gridWidth = cols * cellSize + (cols - 1) * cellGap;
   $: gridHeight = rows * cellSize + (rows - 1) * cellGap;
   $: totalCells = rows * cols;
   $: activeCount = activeCells.size;
+  $: previewCellSize = Math.max(16, Math.min(cellSize, 96));
+  $: previewRadius = Math.min(cornerRadius, previewCellSize / 2);
   $: svgOutput = generateSvg(
     activeCells,
     gridWidth,
@@ -212,7 +236,7 @@
   }
 </script>
 
-<svelte:window on:pointerup={stopPainting} on:pointercancel={stopPainting} />
+<svelte:window on:pointerup={stopPointerActions} on:pointercancel={stopPointerActions} on:pointermove={handlePointerMove} />
 
 <main class="page">
   <header class="header">
@@ -229,131 +253,95 @@
 
   <section class="panel">
     <div class="controls">
-      <div class="controls-column">
-        <div class="input-row">
-          <label>
-            Rows
+      <div class="visualizer">
+        <label class="radius-slider">
+          <span class="sr-only">Corner radius</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={radiusFactor}
+            on:input={(event) => (radiusFactor = clampInt(event.currentTarget.value, 0, 100))}
+          />
+        </label>
+        <div class="visualizer-preview">
+          <div
+            class="visualizer-cell is-swatch"
+            aria-label="Fill color"
+            style={`width: ${previewCellSize}px; height: ${previewCellSize}px; border-radius: ${previewRadius}px; --preview-color: ${fillColor};`}
+          >
             <input
-              type="number"
-              min="1"
-              max="200"
-              value={rows}
-              on:input={(event) => (rows = clampInt(event.currentTarget.value, 1, 200))}
+              class="color-picker-input"
+              type="color"
+              value={fillColor}
+              aria-label="Fill color"
+              on:input={(event) => (fillColor = event.currentTarget.value)}
             />
-          </label>
-          <label>
-            Columns
-            <input
-              type="number"
-              min="1"
-              max="200"
-              value={cols}
-              on:input={(event) => (cols = clampInt(event.currentTarget.value, 1, 200))}
-            />
-          </label>
-        </div>
-        <div class="input-row">
-          <label>
-            Cell size
-            <input
-              type="number"
-              min="1"
-              max="64"
-              value={cellSize}
-              on:input={(event) => (cellSize = clampInt(event.currentTarget.value, 1, 64))}
-            />
-          </label>
-          <label>
-            Cell gap
-            <input
-              type="number"
-              min="0"
-              max="64"
-              value={cellGap}
-              on:input={(event) => (cellGap = clampInt(event.currentTarget.value, 0, 64))}
-            />
-          </label>
+            <span class="resize-handle" on:pointerdown|stopPropagation={startResize}></span>
+          </div>
         </div>
       </div>
-      <div class="controls-column">
+      <div class="actions-panel">
         <div class="input-row">
-          <label>
-            Corner radius
-            <input
-              type="number"
-              min="0"
-              max="256"
-              value={cornerRadius}
-              on:input={(event) => (cornerRadius = clampInt(event.currentTarget.value, 0, 256))}
-            />
-          </label>
-          <label>
-            Random cells
-            <input
-              type="number"
-              min="0"
-              max={rows * cols}
-              value={randomCount}
-              on:input={(event) => (randomCount = clampInt(event.currentTarget.value, 0, rows * cols))}
-            />
-          </label>
         </div>
-        <div class="input-row">
-          <label class="color">
-            Fill color
-            <div class="color-row">
-              <input
-                type="color"
-                value={fillColor}
-                on:input={(event) => (fillColor = event.currentTarget.value)}
-              />
-              <input
-                type="text"
-                value={fillColor}
-                on:input={(event) => (fillColor = event.currentTarget.value)}
-              />
-            </div>
-          </label>
-        </div>
-      </div>
-      <div class="actions">
-        <div class="actions-group">
-          <button type="button" on:click={clearGrid}>Clear grid</button>
-          <button type="button" on:click={randomFill}>Random fill</button>
-        </div>
-        <div class="actions-group">
-          <button type="button" on:click={copySvg}>Copy SVG</button>
-          <button type="button" on:click={downloadSvg}>Download SVG</button>
-          {#if copyStatus}
-            <span class="status">{copyStatus}</span>
-          {/if}
+        <div class="actions">
+          <div class="actions-group">
+            <button type="button" on:click={clearGrid}>Clear grid</button>
+          </div>
+          <div class="actions-group">
+            <button type="button" on:click={copySvg}>Copy SVG</button>
+            <button type="button" on:click={downloadSvg}>Download SVG</button>
+            {#if copyStatus}
+              <span class="status">{copyStatus}</span>
+            {/if}
+          </div>
         </div>
       </div>
     </div>
 
+    <div class="grid-controls">
+      <label class="grid-gap-slider">
+        Grid gap
+        <input
+          type="range"
+          min="0"
+          max="64"
+          value={cellGap}
+          on:input={(event) => (cellGap = clampInt(event.currentTarget.value, 0, 64))}
+        />
+      </label>
+    </div>
+
     <div class="grid-panel">
-      <div
-        class="grid"
-        style={`grid-template-columns: repeat(${cols}, ${cellSize}px); grid-auto-rows: ${cellSize}px; gap: ${cellGap}px; --fill-color: ${fillColor}; --corner-radius: ${cornerRadius}px;`}
-        on:pointerdown|preventDefault={startPainting}
-        on:pointermove={continuePainting}
-        role="grid"
-        aria-label="Drawing grid"
-      >
-        {#each Array.from({ length: rows }) as _, row}
-          {#each Array.from({ length: cols }) as _, col}
-            {@const cellKey = keyFor(row, col)}
-            {@const cellColor = activeCells.get(cellKey)}
-            <button
-              type="button"
-              class:active={activeCells.has(cellKey)}
-              data-row={row}
-              data-col={col}
-              aria-label={`Cell ${row + 1}, ${col + 1}`}
-              style={cellColor ? `background: ${cellColor}; border-color: ${cellColor};` : ""}
-            ></button>
+      <div class="grid-resize-wrapper">
+        <div
+          class="grid"
+          style={`grid-template-columns: repeat(${cols}, ${cellSize}px); grid-auto-rows: ${cellSize}px; gap: ${cellGap}px; --fill-color: ${fillColor}; --corner-radius: ${cornerRadius}px;`}
+          on:pointerdown|preventDefault={startPainting}
+          on:pointermove={continuePainting}
+          role="grid"
+          aria-label="Drawing grid"
+        >
+          {#each Array.from({ length: rows }) as _, row}
+            {#each Array.from({ length: cols }) as _, col}
+              {@const cellKey = keyFor(row, col)}
+              {@const cellColor = activeCells.get(cellKey)}
+              <button
+                type="button"
+                class:active={activeCells.has(cellKey)}
+                data-row={row}
+                data-col={col}
+                aria-label={`Cell ${row + 1}, ${col + 1}`}
+                style={cellColor ? `background: ${cellColor}; border-color: ${cellColor};` : ""}
+              ></button>
+            {/each}
           {/each}
-        {/each}
+        </div>
+        <span
+          class="grid-resize-handle"
+          aria-label="Resize grid"
+          on:pointerdown|stopPropagation={startGridResize}
+        ></span>
       </div>
     </div>
   </section>
@@ -417,21 +405,212 @@
   .controls {
     display: flex;
     flex-wrap: wrap;
-    gap: 1.5rem;
+    gap: 2rem;
     align-items: flex-start;
   }
 
-  .controls-column {
+  .visualizer {
+    display: flex;
+    gap: 1.5rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .visualizer-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+
+  .visualizer-cell {
+    position: relative;
+    border: 1px solid #d9e2ec;
+    background: white;
+    box-sizing: border-box;
+  }
+
+  .visualizer-preview .is-swatch {
+    background: var(--preview-color, #2b323b);
+    border-color: var(--preview-color, #2b323b);
+    position: relative;
+    cursor: pointer;
+  }
+
+  .visualizer-preview .color-picker-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 1;
+  }
+
+  .radius-slider {
+    width: max(var(--preview-cell-size), 50px);
+    height: var(--preview-cell-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+  }
+
+  .radius-slider input[type="range"] {
+    width: max(var(--preview-cell-size), 50px);
+    height: 1px;
+    margin: 0;
+    background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: ew-resize;
+  }
+
+  .radius-slider input[type="range"]::-webkit-slider-runnable-track {
+    height: 1px;
+    background: #4c6ef5;
+    border-radius: 999px;
+  }
+
+  .radius-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #4c6ef5;
+    margin-top: -4.5px;
+  }
+
+  .radius-slider input[type="range"]::-moz-range-track {
+    height: 1px;
+    background: #4c6ef5;
+    border-radius: 999px;
+  }
+
+  .radius-slider input[type="range"]::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #4c6ef5;
+    border: none;
+  }
+
+  .grid-controls {
+    display: flex;
+    justify-content: flex-start;
+    margin: 1rem 0 0.5rem;
+  }
+
+  .grid-gap-slider {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    color: #2b323b;
+    width: 128px;
+  }
+
+  .grid-gap-slider input[type="range"] {
+    width: 128px;
+    height: 1px;
+    margin: 0;
+    background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: ew-resize;
+  }
+
+  .grid-gap-slider input[type="range"]::-webkit-slider-runnable-track {
+    height: 1px;
+    background: #4c6ef5;
+    border-radius: 999px;
+  }
+
+  .grid-gap-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #4c6ef5;
+    margin-top: -4.5px;
+  }
+
+  .grid-gap-slider input[type="range"]::-moz-range-track {
+    height: 1px;
+    background: #4c6ef5;
+    border-radius: 999px;
+  }
+
+  .grid-gap-slider input[type="range"]::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #4c6ef5;
+    border: none;
+  }
+  .resize-handle {
+    position: absolute;
+    right: -16px;
+    bottom: -16px;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    background: #4c6ef5;
+    border: 2px solid white;
+    box-shadow: 0 4px 8px rgba(15, 23, 42, 0.25);
+    cursor: nwse-resize;
+    z-index: 2;
+  }
+
+  /* .value {
+    margin-left: 0.35rem;
+    font-weight: 600;
+    color: #1f2933;
+  } */
+
+  .grid-resize-wrapper {
+    position: relative;
+    width: fit-content;
+  }
+
+  .grid-resize-handle {
+    position: absolute;
+    right: -18px;
+    bottom: -18px;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    background: #4c6ef5;
+    border: 2px solid white;
+    box-shadow: 0 4px 8px rgba(15, 23, 42, 0.25);
+    cursor: nwse-resize;
+  }
+
+  input[type="range"] {
+    accent-color: #4c6ef5;
+  }
+
+
+  .actions-panel {
     display: flex;
     flex-direction: column;
     gap: 1rem;
   }
 
-  .input-row {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    align-items: flex-end;
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   label {
@@ -442,13 +621,13 @@
     color: #2b323b;
   }
 
-  input[type="number"],
+  /* input[type="number"],
   input[type="text"] {
     border: 1px solid #d0d7de;
     border-radius: 0.6rem;
     padding: 0.5rem 0.7rem;
     font-size: 0.9rem;
-  }
+  } */
 
   input[type="color"] {
     width: 100%;
@@ -456,26 +635,6 @@
     border-radius: 0.6rem;
     padding: 0.3rem;
     height: 2.6rem;
-  }
-
-  .color {
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .color-row {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .color-row input[type="color"] {
-    flex: 0 0 3rem;
-  }
-
-  .color-row input[type="text"] {
-    flex: 0 1 8rem;
-    width: 8rem;
   }
 
   .actions {
@@ -521,11 +680,12 @@
 
   .grid-panel {
     margin-top: 1.5rem;
-    overflow: auto;
+    overflow: visible;
     padding: 1rem;
     border-radius: 1rem;
     border: 1px solid #e2e8f0;
     background: #f8fafc;
+    width: fit-content;
   }
 
   .grid {
