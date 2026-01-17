@@ -323,7 +323,9 @@
             aria-label="Grid gap"
             style={`width: ${previewCellSize}px; height: ${previewCellSize}px; border-radius: ${previewRadius}px;`}
             on:pointerdown|stopPropagation={startGapDrag}
-          ></div>
+          >
+            <span class="gap-handle-indicator" aria-hidden="true"></span>
+          </div>
         </div>
       </div>
       <div class="actions-panel"></div>
@@ -469,11 +471,26 @@
     background: white;
     border-color: #d9e2ec;
     cursor: ew-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .gap-handle-indicator {
+    display: block;
+    width: 14px;
+    height: 6px;
+    border-radius: 999px;
+    background: #4c6ef5;
   }
 
   .visualizer-preview .color-picker-input {
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0;
     opacity: 0;
     cursor: pointer;
     z-index: 1;
