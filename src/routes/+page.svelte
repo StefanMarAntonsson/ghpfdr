@@ -6,7 +6,7 @@
   let cornerRadius = 4;
   let fillColor = "#2B323B";
 
-  let activeCells = new Set();
+  let activeCells = new Map();
   let isPainting = false;
   let paintValue = true;
   let copyStatus = "";
@@ -36,13 +36,13 @@
 
   const pruneActiveCells = (cells, maxRows, maxCols) => {
     let changed = false;
-    const next = new Set();
-    for (const entry of cells) {
+    const next = new Map();
+    for (const [entry, color] of cells) {
       const [rowText, colText] = entry.split(":");
       const row = Number(rowText);
       const col = Number(colText);
       if (row >= 0 && row < maxRows && col >= 0 && col < maxCols) {
-        next.add(entry);
+        next.set(entry, color);
       } else {
         changed = true;
       }
@@ -51,10 +51,10 @@
   };
 
   const setCell = (row, col, value) => {
-    const next = new Set(activeCells);
+    const next = new Map(activeCells);
     const key = keyFor(row, col);
     if (value) {
-      next.add(key);
+      next.set(key, fillColor);
     } else {
       next.delete(key);
     }
@@ -101,7 +101,7 @@
   };
 
   const clearGrid = () => {
-    activeCells = new Set();
+    activeCells = new Map();
   };
 
   const randomFill = () => {
@@ -125,7 +125,11 @@
         const swapIndex = Math.floor(Math.random() * (i + 1));
         [allKeys[i], allKeys[swapIndex]] = [allKeys[swapIndex], allKeys[i]];
       }
-      return new Set(allKeys.slice(0, targetCount));
+      const next = new Map();
+      for (const entry of allKeys.slice(0, targetCount)) {
+        next.set(entry, fillColor);
+      }
+      return next;
     };
 
     let next = createRandomSet();
@@ -136,7 +140,7 @@
         next = createRandomSet();
         let isSame = previous.size === next.size;
         if (isSame) {
-          for (const entry of previous) {
+          for (const entry of previous.keys()) {
             if (!next.has(entry)) {
               isSame = false;
               break;
@@ -178,6 +182,7 @@
   $: activeCells = pruneActiveCells(activeCells, rows, cols);
   $: gridWidth = cols * cellSize + (cols - 1) * cellGap;
   $: gridHeight = rows * cellSize + (rows - 1) * cellGap;
+  $: totalCells = rows * cols;
   $: activeCount = activeCells.size;
   $: svgOutput = generateSvg(
     activeCells,
@@ -191,14 +196,14 @@
 
   function generateSvg(cells, width, height, size, gap, radius, color) {
     const lines = [];
-    for (const entry of cells) {
+    for (const [entry, entryColor] of cells) {
       const [rowText, colText] = entry.split(":");
       const row = Number(rowText);
       const col = Number(colText);
       const x = col * (size + gap);
       const y = row * (size + gap);
       lines.push(
-        `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${radius}" fill="${color}" />`
+        `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${radius}" fill="${entryColor || color}" />`
       );
     }
 
@@ -217,7 +222,7 @@
     </div>
     <div class="summary">
       <span>{rows} x {cols}</span>
-      <span>{activeCount} cells filled</span>
+      <span>{activeCount} out of {totalCells} cells filled</span>
       <span>{gridWidth} x {gridHeight}px</span>
     </div>
   </header>
@@ -312,13 +317,17 @@
         </div>
       </div>
       <div class="actions">
-        <button type="button" on:click={clearGrid}>Clear grid</button>
-        <button type="button" on:click={randomFill}>Random fill</button>
-        <button type="button" on:click={copySvg}>Copy SVG</button>
-        <button type="button" on:click={downloadSvg}>Download SVG</button>
-        {#if copyStatus}
-          <span class="status">{copyStatus}</span>
-        {/if}
+        <div class="actions-group">
+          <button type="button" on:click={clearGrid}>Clear grid</button>
+          <button type="button" on:click={randomFill}>Random fill</button>
+        </div>
+        <div class="actions-group">
+          <button type="button" on:click={copySvg}>Copy SVG</button>
+          <button type="button" on:click={downloadSvg}>Download SVG</button>
+          {#if copyStatus}
+            <span class="status">{copyStatus}</span>
+          {/if}
+        </div>
       </div>
     </div>
 
@@ -333,12 +342,15 @@
       >
         {#each Array.from({ length: rows }) as _, row}
           {#each Array.from({ length: cols }) as _, col}
+            {@const cellKey = keyFor(row, col)}
+            {@const cellColor = activeCells.get(cellKey)}
             <button
               type="button"
-              class:active={activeCells.has(keyFor(row, col))}
+              class:active={activeCells.has(cellKey)}
               data-row={row}
               data-col={col}
               aria-label={`Cell ${row + 1}, ${col + 1}`}
+              style={cellColor ? `background: ${cellColor}; border-color: ${cellColor};` : ""}
             ></button>
           {/each}
         {/each}
@@ -468,10 +480,15 @@
 
   .actions {
     display: flex;
-    flex-direction: column;
     gap: 0.75rem;
     align-items: flex-start;
     width: max-content;
+  }
+
+  .actions-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
   }
 
   .actions button {
@@ -485,11 +502,15 @@
     width: 100%;
   }
 
-  .actions button:nth-of-type(2) {
+  .actions-group:first-child button:nth-of-type(1) {
+    background: #e03131;
+  }
+
+  .actions-group:first-child button:nth-of-type(2) {
     background: #4c6ef5;
   }
 
-  .actions button:nth-of-type(3) {
+  .actions-group:last-child button:nth-of-type(1) {
     background: #12b886;
   }
 
